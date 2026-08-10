@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Logs & Recordings</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6">
+
+  <div class="max-w-4xl mx-auto space-y-6">
+    
+    <!-- Admin Header -->
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl flex justify-between items-center">
+      <div>
+        <h1 class="text-xl font-bold text-cyan-400">Admin Dashboard</h1>
+        <p class="text-xs text-slate-400 mt-1">Real-time Visitor Logs & 5s Video Recordings</p>
+      </div>
+      <div class="bg-slate-950 px-4 py-2 rounded-xl border border-slate-800 text-xs text-green-400 font-mono flex items-center gap-2">
+        <div class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></div>
+        Live Database Sync
+      </div>
+    </div>
+
+    <!-- Visitor Access Logs Section -->
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Visitor Access & Permission Logs</h2>
+      <div id="logsContainer" class="space-y-2 max-h-60 overflow-auto">
+        <p class="text-slate-500 text-xs italic">Loading access logs...</p>
+      </div>
+    </div>
+
+    <!-- Recorded Videos Section -->
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Submitted 5s Video Recordings</h2>
+      <div id="videosContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <p class="text-slate-500 text-xs italic">Loading video recordings...</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Firebase Scripts -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDc6F_094RHBXWlIjyO8lP_Y1IF3uDfCzU",
+      authDomain: "gen-lang-client-0404390549.firebaseapp.com",
+      databaseURL: "https://gen-lang-client-0404390549-default-rtdb.firebaseio.com",
+      projectId: "gen-lang-client-0404390549",
+      storageBucket: "gen-lang-client-0404390549.firebasestorage.app",
+      messagingSenderId: "878924381688",
+      appId: "1:878924381688:web:3500ab452bd35ce4872a0d"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const logsContainer = document.getElementById('logsContainer');
+    const videosContainer = document.getElementById('videosContainer');
+
+    // 1. Fetch Visitor Logs Real-time
+    onValue(ref(db, 'visits_log'), (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        logsContainer.innerHTML = "";
+        Object.values(data).reverse().forEach(log => {
+          const isGranted = log.permission === "Granted";
+          const badgeColor = isGranted ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-red-500/10 text-red-400 border-red-500/20";
+          
+          logsContainer.innerHTML += `
+            <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 flex justify-between items-center text-xs">
+              <div>
+                <p class="text-slate-300 font-medium">Visited At: ${new Date(log.timestamp).toLocaleString()}</p>
+                <p class="text-[10px] text-slate-500 mt-0.5 truncate max-w-xs">${log.userAgent || 'Unknown Device'}</p>
+              </div>
+              <span class="px-3 py-1 rounded-full border text-[11px] font-semibold ${badgeColor}">
+                Permission: ${log.permission}
+              </span>
+            </div>
+          `;
+        });
+      } else {
+        logsContainer.innerHTML = `<p class="text-slate-500 text-xs italic">No visitor logs found yet.</p>`;
+      }
+    });
+
+    // 2. Fetch Recorded Videos Real-time
+    onValue(ref(db, 'recorded_videos'), (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        videosContainer.innerHTML = "";
+        Object.values(data).reverse().forEach(item => {
+          videosContainer.innerHTML += `
+            <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 shadow-md">
+              <div class="flex justify-between items-center">
+                <p class="text-[11px] text-slate-400 font-mono">Recorded: ${new Date(item.createdAt).toLocaleString()}</p>
+                <span class="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-md border border-cyan-500/20">5s Webm</span>
+              </div>
+              <video controls src="${item.videoData}" class="w-full rounded-xl border border-slate-800 h-44 object-cover bg-black"></video>
+            </div>
+          `;
+        });
+      } else {
+        videosContainer.innerHTML = `<p class="text-slate-500 text-xs italic">No video recordings found in database.</p>`;
+      }
+    });
+  </script>
+</body>
+</html>
