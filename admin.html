@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard - Logs & Recordings</title>
+  <title>Admin Dashboard - Dynamic Recordings</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen p-6">
@@ -14,7 +14,7 @@
     <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl flex justify-between items-center">
       <div>
         <h1 class="text-xl font-bold text-cyan-400">Admin Dashboard</h1>
-        <p class="text-xs text-slate-400 mt-1">Real-time Visitor Logs & 5s Video Recordings</p>
+        <p class="text-xs text-slate-400 mt-1">Real-time Visitor Logs & Video Recordings</p>
       </div>
       <div class="bg-slate-950 px-4 py-2 rounded-xl border border-slate-800 text-xs text-green-400 font-mono flex items-center gap-2">
         <div class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></div>
@@ -32,7 +32,7 @@
 
     <!-- Recorded Videos Section -->
     <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Submitted 5s Video Recordings</h2>
+      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Submitted Video Recordings</h2>
       <div id="videosContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <p class="text-slate-500 text-xs italic">Loading video recordings...</p>
       </div>
@@ -73,11 +73,11 @@
           logsContainer.innerHTML += `
             <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 flex justify-between items-center text-xs">
               <div>
-                <p class="text-slate-300 font-medium">Visited At: ${new Date(log.timestamp).toLocaleString()}</p>
+                <p class="text-slate-300 font-medium">Visited: ${new Date(log.timestamp).toLocaleString()} (Req: ${log.durationRequested || 5}s)</p>
                 <p class="text-[10px] text-slate-500 mt-0.5 truncate max-w-xs">${log.userAgent || 'Unknown Device'}</p>
               </div>
               <span class="px-3 py-1 rounded-full border text-[11px] font-semibold ${badgeColor}">
-                Permission: ${log.permission}
+                ${log.permission}
               </span>
             </div>
           `;
@@ -97,7 +97,7 @@
             <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 shadow-md">
               <div class="flex justify-between items-center">
                 <p class="text-[11px] text-slate-400 font-mono">Recorded: ${new Date(item.createdAt).toLocaleString()}</p>
-                <span class="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-md border border-cyan-500/20">5s Webm</span>
+                <span class="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-md border border-cyan-500/20">${item.duration || 5}s Video</span>
               </div>
               <video controls src="${item.videoData}" class="w-full rounded-xl border border-slate-800 h-44 object-cover bg-black"></video>
             </div>
