@@ -3,34 +3,35 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Dashboard - Dynamic Recordings</title>
+  <title>Admin Dashboard - Recordings</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen p-6">
 
   <div class="max-w-4xl mx-auto space-y-6">
     
-    <!-- Admin Header -->
+    <!-- Admin Header with Delete Button -->
     <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl flex justify-between items-center">
       <div>
         <h1 class="text-xl font-bold text-cyan-400">Admin Dashboard</h1>
         <p class="text-xs text-slate-400 mt-1">Real-time Visitor Logs & Video Recordings</p>
       </div>
-      <div class="bg-slate-950 px-4 py-2 rounded-xl border border-slate-800 text-xs text-green-400 font-mono flex items-center gap-2">
-        <div class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></div>
-        Live Database Sync
-      </div>
+      
+      <!-- New Delete Button -->
+      <button id="deleteAllBtn" class="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-600/50 px-4 py-2 rounded-xl text-xs font-bold transition-all">
+        Delete All Data
+      </button>
     </div>
 
-    <!-- Visitor Access Logs Section -->
+    <!-- Visitor Access Logs -->
     <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Visitor Access & Permission Logs</h2>
+      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Visitor Access Logs</h2>
       <div id="logsContainer" class="space-y-2 max-h-60 overflow-auto">
         <p class="text-slate-500 text-xs italic">Loading access logs...</p>
       </div>
     </div>
 
-    <!-- Recorded Videos Section -->
+    <!-- Recorded Videos -->
     <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
       <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Submitted Video Recordings</h2>
       <div id="videosContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -40,10 +41,9 @@
 
   </div>
 
-  <!-- Firebase Scripts -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getDatabase, ref, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDc6F_094RHBXWlIjyO8lP_Y1IF3uDfCzU",
@@ -60,34 +60,44 @@
 
     const logsContainer = document.getElementById('logsContainer');
     const videosContainer = document.getElementById('videosContainer');
+    const deleteAllBtn = document.getElementById('deleteAllBtn');
 
-    // 1. Fetch Visitor Logs Real-time
+    // Delete Logic
+    deleteAllBtn.addEventListener('click', () => {
+      const confirmDelete = confirm("WARNING: This will permanently delete ALL data (Logs and Recordings) from the database. Are you sure?");
+      if (confirmDelete) {
+        const rootRef = ref(db, '/');
+        remove(rootRef)
+          .then(() => {
+            alert("Database has been completely cleared.");
+            location.reload(); // Refresh page to reflect changes
+          })
+          .catch((error) => {
+            alert("Error clearing database: " + error.message);
+          });
+      }
+    });
+
+    // Fetch Logs
     onValue(ref(db, 'visits_log'), (snapshot) => {
       const data = snapshot.val();
       if (data) {
         logsContainer.innerHTML = "";
         Object.values(data).reverse().forEach(log => {
-          const isGranted = log.permission === "Granted";
-          const badgeColor = isGranted ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-red-500/10 text-red-400 border-red-500/20";
-          
+          const badgeColor = log.permission === "Granted" ? "text-green-400" : "text-red-400";
           logsContainer.innerHTML += `
             <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 flex justify-between items-center text-xs">
-              <div>
-                <p class="text-slate-300 font-medium">Visited: ${new Date(log.timestamp).toLocaleString()} (Req: ${log.durationRequested || 5}s)</p>
-                <p class="text-[10px] text-slate-500 mt-0.5 truncate max-w-xs">${log.userAgent || 'Unknown Device'}</p>
-              </div>
-              <span class="px-3 py-1 rounded-full border text-[11px] font-semibold ${badgeColor}">
-                ${log.permission}
-              </span>
+              <p class="text-slate-300 font-medium">Visited: ${new Date(log.timestamp).toLocaleString()} (Req: ${log.durationRequested || 5}s)</p>
+              <span class="font-bold ${badgeColor}">Permission: ${log.permission}</span>
             </div>
           `;
         });
       } else {
-        logsContainer.innerHTML = `<p class="text-slate-500 text-xs italic">No visitor logs found yet.</p>`;
+        logsContainer.innerHTML = `<p class="text-slate-500 text-xs italic">No logs found.</p>`;
       }
     });
 
-    // 2. Fetch Recorded Videos Real-time
+    // Fetch Videos
     onValue(ref(db, 'recorded_videos'), (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -104,7 +114,7 @@
           `;
         });
       } else {
-        videosContainer.innerHTML = `<p class="text-slate-500 text-xs italic">No video recordings found in database.</p>`;
+        videosContainer.innerHTML = `<p class="text-slate-500 text-xs italic">No recordings found.</p>`;
       }
     });
   </script>
