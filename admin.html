@@ -9,36 +9,29 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen p-6">
 
   <div class="max-w-4xl mx-auto space-y-6">
-    
-    <!-- Admin Header with Delete Button -->
     <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl flex justify-between items-center">
       <div>
         <h1 class="text-xl font-bold text-cyan-400">Admin Dashboard</h1>
         <p class="text-xs text-slate-400 mt-1">Real-time Visitor Logs & Video Recordings</p>
       </div>
-      
-      <!-- New Delete Button -->
       <button id="deleteAllBtn" class="bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-600/50 px-4 py-2 rounded-xl text-xs font-bold transition-all">
         Delete All Data
       </button>
     </div>
 
-    <!-- Visitor Access Logs -->
     <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
       <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Visitor Access Logs</h2>
-      <div id="logsContainer" class="space-y-2 max-h-60 overflow-auto">
-        <p class="text-slate-500 text-xs italic">Loading access logs...</p>
+      <div id="logsContainer" class="space-y-2 max-h-60 overflow-auto text-sm">
+        <p class="text-slate-500 italic">Loading access logs...</p>
       </div>
     </div>
 
-    <!-- Recorded Videos -->
     <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
       <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Submitted Video Recordings</h2>
       <div id="videosContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <p class="text-slate-500 text-xs italic">Loading video recordings...</p>
+        <p class="text-slate-500 italic">Loading video recordings...</p>
       </div>
     </div>
-
   </div>
 
   <script type="module">
@@ -58,63 +51,73 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const logsContainer = document.getElementById('logsContainer');
-    const videosContainer = document.getElementById('videosContainer');
-    const deleteAllBtn = document.getElementById('deleteAllBtn');
+    // DECODER: Base64 string to Blob URL for optimized Memory Usage
+    function base64ToBlobUrl(base64Data) {
+      try {
+        const parts = base64Data.split(';base64,');
+        const contentType = parts[0].split(':')[1] || 'video/webm';
+        const raw = window.atob(parts[1]);
+        const rawLength = raw.length;
+        const uInt8Array = new Uint8Array(rawLength);
+        for (let i = 0; i < rawLength; ++i) { uInt8Array[i] = raw.charCodeAt(i); }
+        return URL.createObjectURL(new Blob([uInt8Array], { type: contentType }));
+      } catch (e) {
+        return base64Data; // Fallback
+      }
+    }
 
-    // Delete Logic
-    deleteAllBtn.addEventListener('click', () => {
-      const confirmDelete = confirm("WARNING: This will permanently delete ALL data (Logs and Recordings) from the database. Are you sure?");
-      if (confirmDelete) {
-        const rootRef = ref(db, '/');
-        remove(rootRef)
-          .then(() => {
-            alert("Database has been completely cleared.");
-            location.reload(); // Refresh page to reflect changes
-          })
-          .catch((error) => {
-            alert("Error clearing database: " + error.message);
-          });
+    document.getElementById('deleteAllBtn').addEventListener('click', () => {
+      if (confirm("WARNING: This will permanently delete ALL data. Are you sure?")) {
+        remove(ref(db, '/')).then(() => location.reload());
       }
     });
 
-    // Fetch Logs
     onValue(ref(db, 'visits_log'), (snapshot) => {
       const data = snapshot.val();
+      const logsContainer = document.getElementById('logsContainer');
+      logsContainer.innerHTML = data ? "" : `<p class="text-slate-500 italic">No logs found.</p>`;
       if (data) {
-        logsContainer.innerHTML = "";
         Object.values(data).reverse().forEach(log => {
-          const badgeColor = log.permission === "Granted" ? "text-green-400" : "text-red-400";
+          const color = log.permission === "Granted" ? "text-green-400" : "text-red-400";
           logsContainer.innerHTML += `
-            <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 flex justify-between items-center text-xs">
-              <p class="text-slate-300 font-medium">Visited: ${new Date(log.timestamp).toLocaleString()} (Req: ${log.durationRequested || 5}s)</p>
-              <span class="font-bold ${badgeColor}">Permission: ${log.permission}</span>
-            </div>
-          `;
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+              <p class="text-slate-300">Visited: ${new Date(log.timestamp).toLocaleString()}</p>
+              <span class="font-bold ${color}">${log.permission}</span>
+            </div>`;
         });
-      } else {
-        logsContainer.innerHTML = `<p class="text-slate-500 text-xs italic">No logs found.</p>`;
       }
     });
 
-    // Fetch Videos
     onValue(ref(db, 'recorded_videos'), (snapshot) => {
       const data = snapshot.val();
+      const videosContainer = document.getElementById('videosContainer');
+      videosContainer.innerHTML = data ? "" : `<p class="text-slate-500 italic">No recordings found.</p>`;
+      
       if (data) {
-        videosContainer.innerHTML = "";
-        Object.values(data).reverse().forEach(item => {
-          videosContainer.innerHTML += `
-            <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 shadow-md">
-              <div class="flex justify-between items-center">
-                <p class="text-[11px] text-slate-400 font-mono">Recorded: ${new Date(item.createdAt).toLocaleString()}</p>
-                <span class="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-md border border-cyan-500/20">${item.duration || 5}s Video</span>
-              </div>
-              <video controls src="${item.videoData}" class="w-full rounded-xl border border-slate-800 h-44 object-cover bg-black"></video>
+        // Reverse array to show newest first
+        Object.entries(data).reverse().forEach(([key, item]) => {
+          
+          // Decode Base64 to Object URL to prevent DOM Memory Leak
+          const videoObjectUrl = base64ToBlobUrl(item.videoData);
+          const fileName = `SpyCam_${new Date(item.createdAt).getTime()}.webm`;
+
+          const card = document.createElement('div');
+          card.className = "bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col gap-3";
+          card.innerHTML = `
+            <div class="flex justify-between items-center text-[10px]">
+              <span class="text-slate-400">${new Date(item.createdAt).toLocaleString()}</span>
+              <span class="bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20">${item.duration}s Video</span>
             </div>
+            
+            <!-- Preload metadata stops browser crashing on multiple videos -->
+            <video controls preload="metadata" src="${videoObjectUrl}" class="w-full h-40 object-cover bg-black rounded-xl border border-slate-800"></video>
+            
+            <a href="${videoObjectUrl}" download="${fileName}" class="w-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-center py-2 rounded-xl text-xs font-bold transition-all">
+              ↓ Download Video
+            </a>
           `;
+          videosContainer.appendChild(card);
         });
-      } else {
-        videosContainer.innerHTML = `<p class="text-slate-500 text-xs italic">No recordings found.</p>`;
       }
     });
   </script>
