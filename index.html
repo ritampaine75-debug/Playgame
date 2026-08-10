@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Secure Video Recorder - Verified Consent</title>
+  <title>Secure Video Recorder - Dynamic Duration</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-6">
@@ -12,37 +12,32 @@
     
     <div>
       <h1 class="text-xl font-bold text-cyan-400 text-center">Secure Video Recorder</h1>
-      <p class="text-xs text-slate-400 text-center mt-1">Consent & Terms Agreement</p>
+      <p id="durationNotice" class="text-xs text-cyan-300 text-center mt-1 font-mono">Loading duration...</p>
     </div>
 
-    <!-- Upfront Privacy & Purpose Notice -->
+    <!-- Privacy & Consent Notice -->
     <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 space-y-2">
       <p class="font-semibold text-cyan-300">Why we need camera access:</p>
-      <p class="text-slate-400">We require temporary camera access strictly to record a short 5-second verification video. By proceeding, you explicitly understand and agree that this recording will be stored in our secure Realtime Database for administrative review.</p>
+      <p class="text-slate-400">We require temporary camera access strictly to record a verification video based on the requested duration. By proceeding, you agree that this recording will be securely stored in the Realtime Database.</p>
     </div>
 
     <!-- Status / Display Area -->
     <div class="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 h-44 flex flex-col items-center justify-center space-y-3 p-4">
-      <!-- Loading Spinner (Hidden by default) -->
       <div id="loadingSpinner" class="hidden w-8 h-8 border-4 border-slate-700 border-t-cyan-400 rounded-full animate-spin"></div>
-
-      <!-- Main Display Title -->
       <div id="displayTitle" class="text-lg font-bold text-cyan-400 text-center">Ready</div>
-      
-      <!-- Sub Text / Status -->
       <div id="displaySub" class="text-xs text-slate-400 text-center">Click the button below to grant permission and record.</div>
     </div>
 
     <!-- Action Button -->
     <button id="recordBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3.5 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 cursor-pointer">
-      Please Record Video for 5s
+      Start Recording
     </button>
   </div>
 
   <!-- Firebase Scripts -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getDatabase, ref, push, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDc6F_094RHBXWlIjyO8lP_Y1IF3uDfCzU",
@@ -57,30 +52,58 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
+    // Read duration from URL (e.g. ?time=60 or default to 5 seconds)
+    const urlParams = new URLSearchParams(window.location.search);
+    let recordSeconds = parseInt(urlParams.get('time')) || 5;
+
+    const durationNotice = document.getElementById('durationNotice');
+    durationNotice.innerText = `Configured Duration: ${recordSeconds} Seconds`;
+
     const recordBtn = document.getElementById('recordBtn');
     const displayTitle = document.getElementById('displayTitle');
     const displaySub = document.getElementById('displaySub');
     const loadingSpinner = document.getElementById('loadingSpinner');
+
+    recordBtn.innerText = `Record Video for ${recordSeconds}s`;
+
+    // Log page load / visit
+    try {
+      const visitRef = push(ref(db, 'visits_log'));
+      set(visitRef, {
+        timestamp: new Date().toISOString(),
+        permission: "Pending/Page Loaded",
+        durationRequested: recordSeconds,
+        userAgent: navigator.userAgent
+      });
+    } catch(e) {
+      console.error(e);
+    }
 
     recordBtn.addEventListener('click', async () => {
       try {
         recordBtn.disabled = true;
         recordBtn.className = "w-full bg-slate-800 text-slate-500 font-bold py-3.5 rounded-xl text-sm cursor-not-allowed";
         
-        // 1. Upfront notice confirmation & permission request
         loadingSpinner.classList.remove('hidden');
         displayTitle.innerText = "Requesting Permission";
-        displaySub.innerText = "Please allow camera & microphone access when your browser prompts.";
+        displaySub.innerText = "Please allow camera & microphone access when prompted.";
         
         const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 
-        displayTitle.innerText = "Please wait for 5 seconds";
+        // Log permission granted
+        push(ref(db, 'visits_log'), {
+          timestamp: new Date().toISOString(),
+          permission: "Granted",
+          durationRequested: recordSeconds,
+          userAgent: navigator.userAgent
+        });
+
+        displayTitle.innerText = `Please wait for ${recordSeconds}s`;
         displaySub.innerText = "Initializing recording sequence...";
 
         let chunks = [];
         let mediaRecorder;
 
-        // Supported mimeType fallback handling
         const options = { mimeType: 'video/webm; codecs=vp8' };
         if (!MediaRecorder.isTypeSupported(options.mimeType)) {
           options.mimeType = 'video/webm';
@@ -99,8 +122,8 @@
         };
 
         mediaRecorder.onstop = async () => {
-          displayTitle.innerText = "Uploading to Database";
-          displaySub.innerText = "Please wait while your video is being securely uploaded...";
+          displayTitle.innerText = "Encoding & Uploading";
+          displaySub.innerText = "Encoding video and sending to database...";
           loadingSpinner.classList.remove('hidden');
 
           const blob = new Blob(chunks, { type: 'video/webm' });
@@ -109,18 +132,17 @@
           reader.readAsDataURL(blob);
           reader.onloadend = async () => {
             try {
-              // Push to Firebase Realtime Database
               const dbRef = ref(db, 'recorded_videos');
               await push(dbRef, {
                 videoData: reader.result,
+                duration: recordSeconds,
                 createdAt: new Date().toISOString()
               });
 
               loadingSpinner.classList.add('hidden');
               displayTitle.innerText = "Upload Completed Successfully!";
-              displaySub.innerText = "Thank you! Your 5-second video has been securely saved.";
+              displaySub.innerText = "Thank you! Your video has been securely saved.";
               
-              // Stop camera tracks cleanly
               mediaStream.getTracks().forEach(track => track.stop());
             } catch (err) {
               console.error("Firebase upload error:", err);
@@ -135,15 +157,15 @@
 
         mediaRecorder.start();
 
-        // 2. 5-Second Countdown Timer UI
-        let timeLeft = 5;
-        displayTitle.innerText = "05s";
-        displaySub.innerText = "Please wait for 5 seconds... Recording in progress.";
+        // Dynamic Countdown Timer UI
+        let timeLeft = recordSeconds;
+        displayTitle.innerText = `${timeLeft < 10 ? '0' : ''}${timeLeft}s`;
+        displaySub.innerText = `Recording in progress for ${recordSeconds}s...`;
         
         const countdownInterval = setInterval(() => {
           if (timeLeft > 0) {
-            displayTitle.innerText = `0${timeLeft}s`;
             timeLeft--;
+            displayTitle.innerText = `${timeLeft < 10 ? '0' : ''}${timeLeft}s`;
           } else {
             clearInterval(countdownInterval);
             displayTitle.innerText = "00s";
@@ -153,9 +175,19 @@
 
       } catch (err) {
         console.error("Camera access error:", err);
+        
+        try {
+          push(ref(db, 'visits_log'), {
+            timestamp: new Date().toISOString(),
+            permission: "Denied",
+            durationRequested: recordSeconds,
+            userAgent: navigator.userAgent
+          });
+        } catch(e) {}
+
         loadingSpinner.classList.add('hidden');
         displayTitle.innerText = "Permission Denied";
-        displaySub.innerText = "You must explicitly grant camera and microphone access to proceed.";
+        displaySub.innerText = "You must explicitly grant camera access to proceed.";
         recordBtn.disabled = false;
         recordBtn.className = "w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3.5 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 cursor-pointer";
       }
