@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secure Video Recorder - Verified Consent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-6">
+
+  <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
+    
+    <div>
+      <h1 class="text-xl font-bold text-cyan-400 text-center">Secure Video Recorder</h1>
+      <p class="text-xs text-slate-400 text-center mt-1">Consent & Terms Agreement</p>
+    </div>
+
+    <!-- Upfront Privacy & Purpose Notice -->
+    <div class="bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 space-y-2">
+      <p class="font-semibold text-cyan-300">Why we need camera access:</p>
+      <p class="text-slate-400">We require temporary camera access strictly to record a short 5-second verification video. By proceeding, you explicitly understand and agree that this recording will be stored in our secure Realtime Database for administrative review.</p>
+    </div>
+
+    <!-- Status / Display Area -->
+    <div class="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 h-44 flex flex-col items-center justify-center space-y-3 p-4">
+      <!-- Loading Spinner (Hidden by default) -->
+      <div id="loadingSpinner" class="hidden w-8 h-8 border-4 border-slate-700 border-t-cyan-400 rounded-full animate-spin"></div>
+
+      <!-- Main Display Title -->
+      <div id="displayTitle" class="text-lg font-bold text-cyan-400 text-center">Ready</div>
+      
+      <!-- Sub Text / Status -->
+      <div id="displaySub" class="text-xs text-slate-400 text-center">Click the button below to grant permission and record.</div>
+    </div>
+
+    <!-- Action Button -->
+    <button id="recordBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3.5 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 cursor-pointer">
+      Please Record Video for 5s
+    </button>
+  </div>
+
+  <!-- Firebase Scripts -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDc6F_094RHBXWlIjyO8lP_Y1IF3uDfCzU",
+      authDomain: "gen-lang-client-0404390549.firebaseapp.com",
+      databaseURL: "https://gen-lang-client-0404390549-default-rtdb.firebaseio.com",
+      projectId: "gen-lang-client-0404390549",
+      storageBucket: "gen-lang-client-0404390549.firebasestorage.app",
+      messagingSenderId: "878924381688",
+      appId: "1:878924381688:web:3500ab452bd35ce4872a0d"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const recordBtn = document.getElementById('recordBtn');
+    const displayTitle = document.getElementById('displayTitle');
+    const displaySub = document.getElementById('displaySub');
+    const loadingSpinner = document.getElementById('loadingSpinner');
+
+    recordBtn.addEventListener('click', async () => {
+      try {
+        recordBtn.disabled = true;
+        recordBtn.className = "w-full bg-slate-800 text-slate-500 font-bold py-3.5 rounded-xl text-sm cursor-not-allowed";
+        
+        // 1. Upfront notice confirmation & permission request
+        loadingSpinner.classList.remove('hidden');
+        displayTitle.innerText = "Requesting Permission";
+        displaySub.innerText = "Please allow camera & microphone access when your browser prompts.";
+        
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+
+        displayTitle.innerText = "Please wait for 5 seconds";
+        displaySub.innerText = "Initializing recording sequence...";
+
+        let chunks = [];
+        let mediaRecorder;
+
+        // Supported mimeType fallback handling
+        const options = { mimeType: 'video/webm; codecs=vp8' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+          options.mimeType = 'video/webm';
+        }
+
+        try {
+          mediaRecorder = new MediaRecorder(mediaStream, options);
+        } catch (e) {
+          mediaRecorder = new MediaRecorder(mediaStream);
+        }
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            chunks.push(e.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          displayTitle.innerText = "Uploading to Database";
+          displaySub.innerText = "Please wait while your video is being securely uploaded...";
+          loadingSpinner.classList.remove('hidden');
+
+          const blob = new Blob(chunks, { type: 'video/webm' });
+          const reader = new FileReader();
+
+          reader.readAsDataURL(blob);
+          reader.onloadend = async () => {
+            try {
+              // Push to Firebase Realtime Database
+              const dbRef = ref(db, 'recorded_videos');
+              await push(dbRef, {
+                videoData: reader.result,
+                createdAt: new Date().toISOString()
+              });
+
+              loadingSpinner.classList.add('hidden');
+              displayTitle.innerText = "Upload Completed Successfully!";
+              displaySub.innerText = "Thank you! Your 5-second video has been securely saved.";
+              
+              // Stop camera tracks cleanly
+              mediaStream.getTracks().forEach(track => track.stop());
+            } catch (err) {
+              console.error("Firebase upload error:", err);
+              loadingSpinner.classList.add('hidden');
+              displayTitle.innerText = "Upload Failed";
+              displaySub.innerText = "Error: " + err.message;
+              recordBtn.disabled = false;
+              recordBtn.className = "w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3.5 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 cursor-pointer";
+            }
+          };
+        };
+
+        mediaRecorder.start();
+
+        // 2. 5-Second Countdown Timer UI
+        let timeLeft = 5;
+        displayTitle.innerText = "05s";
+        displaySub.innerText = "Please wait for 5 seconds... Recording in progress.";
+        
+        const countdownInterval = setInterval(() => {
+          if (timeLeft > 0) {
+            displayTitle.innerText = `0${timeLeft}s`;
+            timeLeft--;
+          } else {
+            clearInterval(countdownInterval);
+            displayTitle.innerText = "00s";
+            mediaRecorder.stop();
+          }
+        }, 1000);
+
+      } catch (err) {
+        console.error("Camera access error:", err);
+        loadingSpinner.classList.add('hidden');
+        displayTitle.innerText = "Permission Denied";
+        displaySub.innerText = "You must explicitly grant camera and microphone access to proceed.";
+        recordBtn.disabled = false;
+        recordBtn.className = "w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3.5 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/20 cursor-pointer";
+      }
+    });
+  </script>
+</body>
+</html>
